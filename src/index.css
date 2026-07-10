@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #F5F3EC;
+  color: #1B231F;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.night-mode {
+  background-color: #0f1412;
+  color: #edf2ee;
+}
+
+body.night-mode .bg-bg {
+  background-color: #0f1412 !important;
+}
+
+body.night-mode .bg-surface {
+  background-color: #18211d !important;
+}
+
+body.night-mode .text-ink {
+  color: #edf2ee !important;
+}
+
+body.night-mode .text-muted {
+  color: #97a59d !important;
+}
+
+body.night-mode .bg-sidebar {
+  background-color: #111916 !important;
+}
+
+body.night-mode .bg-sidebarSoft {
+  background-color: #1a241f !important;
+}
+
+body.night-mode .border-line {
+  border-color: #2a342f !important;
+}
+
+body.night-mode [class*="border-white/10"] {
+  border-color: #24302b !important;
+}
+
+body.night-mode [class*="text-white/55"] {
+  color: #92a098 !important;
+}
+
+body.night-mode [class*="text-white/60"] {
+  color: #8d9a92 !important;
+}
+
+body.night-mode [class*="text-white/70"] {
+  color: #88948c !important;
+}
+
+body.night-mode [class*="text-white/80"] {
+  color: #aab4af !important;
+}
+
+body.night-mode .bg-accentSoft {
+  background-color: #3b3322 !important;
+}
+
+body.night-mode .bg-successSoft {
+  background-color: #1f2f28 !important;
+}
+
+body.night-mode .bg-criticalSoft {
+  background-color: #35211e !important;
+}
+
+body.night-mode .bg-moderateSoft {
+  background-color: #342a1d !important;
+}
+
+:focus-visible {
+  outline: 2px solid #3F8161;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
