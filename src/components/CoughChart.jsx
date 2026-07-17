@@ -9,18 +9,16 @@ import {
   ReferenceDot,
 } from 'recharts'
 import { useEffect, useMemo, useState } from 'react'
-import { ALERT_THRESHOLD, formatDisplayDate, getAvailableDates, getDefaultSelectedDate } from '../data/detections'
+import { formatDisplayDate, getAvailableDates, getDefaultSelectedDate } from '../data/detections'
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   const value = payload[0].value
-  const overThreshold = value >= ALERT_THRESHOLD
   return (
     <div className="bg-ink text-white text-xs rounded-lg px-3 py-2 shadow-lg font-mono">
       <p className="text-white/60 mb-0.5">{label}</p>
       <p className="font-semibold">
         {value} respiratory distress event{value === 1 ? '' : 's'}
-        {overThreshold && <span className="text-accent"> · above threshold</span>}
       </p>
     </div>
   )

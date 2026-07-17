@@ -11,6 +11,7 @@ import {
   fetchDeviceLastSeen,
   subscribeToDeviceStatus,
   isDeviceOnline,
+  updateReviewedLabel,
 } from './data/detections'
 
 // How often we re-check "is it still recent enough to count as online" —
@@ -35,6 +36,21 @@ export default function App() {
 
   const recordDetectionEvent = incomingEvent => {
     setDetectionEvents(previousEvents => [...previousEvents, incomingEvent])
+  }
+
+  // Applies a vet's None/Distress call to the actual event list (not just
+  // local UI state) so the graph's counts and peak immediately reflect it.
+  // Rolls back if the Supabase write fails.
+  const handleReviewChange = (detectionId, label) => {
+    const previousEvents = detectionEvents
+
+    setDetectionEvents(events =>
+      events.map(event => (event.id === detectionId ? { ...event, reviewedLabel: label } : event))
+    )
+
+    updateReviewedLabel(detectionId, label).catch(() => {
+      setDetectionEvents(previousEvents)
+    })
   }
 
   // The graph continues aggregating detections per hour, recomputed any
@@ -118,7 +134,7 @@ export default function App() {
         ) : (
           <div className="w-full">
             <CoughChart records={hourlyRecords} />
-            <DetectionHistory records={detectionEvents} isLoading={isLoading} />
+            <DetectionHistory records={detectionEvents} isLoading={isLoading} onReviewChange={handleReviewChange} />
           </div>
         )}
       </main>

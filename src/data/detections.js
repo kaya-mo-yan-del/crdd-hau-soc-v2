@@ -171,19 +171,24 @@ export const formatDisplayDate = dateValue => {
 
 // Groups individual detection events into per-hour totals, in the same
 // { date, time: "HH:00", coughs } shape the graph has always expected.
+// A detection reviewed as 'None' (a vet ruling out a false alarm) is
+// excluded from the count; 'Distress' (or not-yet-reviewed) still counts —
+// so correcting the label immediately raises or lowers the graph and peak.
 export const aggregateEventsByHour = events => {
   const buckets = new Map()
 
-  events.forEach(event => {
-    const hour = event.time.slice(0, 2)
-    const key = `${event.date}T${hour}`
+  events
+    .filter(event => event.reviewedLabel !== 'None')
+    .forEach(event => {
+      const hour = event.time.slice(0, 2)
+      const key = `${event.date}T${hour}`
 
-    if (!buckets.has(key)) {
-      buckets.set(key, { date: event.date, time: `${hour}:00`, coughs: 0 })
-    }
+      if (!buckets.has(key)) {
+        buckets.set(key, { date: event.date, time: `${hour}:00`, coughs: 0 })
+      }
 
-    buckets.get(key).coughs += 1
-  })
+      buckets.get(key).coughs += 1
+    })
 
   return Array.from(buckets.values()).sort((a, b) =>
     a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)

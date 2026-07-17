@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Clock3, PlayCircle } from 'lucide-react'
-import { formatDisplayDate, getAvailableDates, updateReviewedLabel } from '../data/detections'
+import { formatDisplayDate, getAvailableDates } from '../data/detections'
 
 const REVIEW_OPTIONS = ['None', 'Distress']
 
-export default function DetectionHistory({ records = [], isLoading = false }) {
+export default function DetectionHistory({ records = [], isLoading = false, onReviewChange = () => {} }) {
   const [activeAudioId, setActiveAudioId] = useState(null)
-  // Local override map so a click feels instant, without waiting on the
-  // network round-trip: { [detectionId]: 'None' | 'Distress' }
-  const [reviewOverrides, setReviewOverrides] = useState({})
 
   const groupedByDate = useMemo(() => {
     const dates = getAvailableDates(records)
@@ -35,19 +32,6 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
   }, [records])
 
   const totalDetections = records.length
-
-  const handleReviewClick = (detectionId, label) => {
-    setReviewOverrides(previous => ({ ...previous, [detectionId]: label }))
-    updateReviewedLabel(detectionId, label).catch(() => {
-      // Roll back if the save failed, so the UI never claims a label stuck
-      // when it didn't.
-      setReviewOverrides(previous => {
-        const next = { ...previous }
-        delete next[detectionId]
-        return next
-      })
-    })
-  }
 
   return (
     <section className="bg-surface rounded-xl2 shadow-card p-4 sm:p-5 lg:p-6 mt-4 sm:mt-5">
@@ -80,7 +64,7 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
                 {detections.map((detection, index) => {
                   const isLast = index === detections.length - 1
                   const isAudioOpen = activeAudioId === detection.id
-                  const currentLabel = reviewOverrides[detection.id] ?? detection.reviewedLabel ?? null
+                  const currentLabel = detection.reviewedLabel ?? null
 
                   return (
                     <div key={detection.id} className="relative pl-0">
@@ -106,7 +90,7 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
                               <button
                                 key={option}
                                 type="button"
-                                onClick={() => handleReviewClick(detection.id, option)}
+                                onClick={() => onReviewChange(detection.id, option)}
                                 className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
                                   isSelected
                                     ? `${selectedTone} border-transparent`
