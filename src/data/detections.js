@@ -2,8 +2,23 @@ import { supabase, getAudioUrl } from '../lib/supabaseClient'
 
 export const ALERT_THRESHOLD = 3
 
+// ---------------------------------------------------------------------------
+// Source of truth: individual Sick-detection EVENTS, read live from Supabase.
+//
+// Every row in `detections` is exactly one respiratory-distress detection,
+// timestamped to the millisecond (Philippine time). Two derived views are
+// built from the resulting event list, same as the old mock data always
+// worked:
+//   - Detection History: shows every event as its own row (event log).
+//   - Graph: groups events into per-hour totals (see aggregateEventsByHour).
+// ---------------------------------------------------------------------------
+
 const MANILA_TZ = 'Asia/Manila'
 
+// Splits a Postgres timestamptz (returned as a UTC ISO string) into the same
+// { date: 'YYYY-MM-DD', time: 'HH:MM:SS.mmm' } shape the UI has always used,
+// rendered in Philippine time regardless of the viewer's own browser/server
+// timezone.
 function toManilaDateTime(isoString) {
   const parsed = new Date(isoString)
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -39,6 +54,21 @@ function mapRowToEvent(row) {
     audioFileName: row.audio_path?.split('/').pop() ?? 'unknown.wav',
     audioDuration: '00:05', // every clip is a fixed 5-second window
     audioUrl: getAudioUrl(row.audio_path),
+    reviewedLabel: row.reviewed_label ?? null,
+  }
+}
+
+// Lets farm staff manually confirm/correct a detection as 'None' (false
+// alarm) or 'Distress' (confirmed). Throws on failure so the caller can
+// roll back its optimistic UI update.
+export async function updateReviewedLabel(id, label) {
+  const { error } = await supabase
+    .from('detections')
+    .update({ reviewed_label: label })
+    .eq('id', id)
+
+  if (error) {
+    throw new Error(error.message)
   }
 }
 
@@ -71,6 +101,53 @@ export function subscribeToDetectionEvents(onNewEvent) {
     .subscribe()
 
   return () => supabase.removeChannel(channel)
+}
+
+// ---------------------------------------------------------------------------
+// Device status: the Pi updates a single `device_status` row's `last_seen`
+// every detection cycle (~5-8s). If we haven't heard from it recently, we
+// treat it as offline — this is what makes the header's status live instead
+// of a hardcoded "active" label.
+// ---------------------------------------------------------------------------
+const DEVICE_OFFLINE_AFTER_MS = 20_000 // a bit more than 2 missed cycles
+
+export async function fetchDeviceLastSeen() {
+  const { data, error } = await supabase
+    .from('device_status')
+    .select('last_seen')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error || !data) {
+    console.error('Failed to load device status:', error?.message)
+    return null
+  }
+
+  return data.last_seen
+}
+
+// Subscribes to heartbeat updates as they arrive. Calls onUpdate(last_seen)
+// each time the Pi checks in. Returns an unsubscribe function.
+export function subscribeToDeviceStatus(onUpdate) {
+  const channel = supabase
+    .channel('device-status-live')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'device_status' },
+      payload => onUpdate(payload.new.last_seen)
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}
+
+// Pure function: given the last known heartbeat, is the device online right
+// now? Kept separate so a component can re-evaluate this on a timer even
+// when no new heartbeat has arrived (i.e. to actually notice a Pi going
+// offline, not just notice it coming back online).
+export function isDeviceOnline(lastSeenIso) {
+  if (!lastSeenIso) return false
+  return Date.now() - new Date(lastSeenIso).getTime() < DEVICE_OFFLINE_AFTER_MS
 }
 
 // ---------------------------------------------------------------------------

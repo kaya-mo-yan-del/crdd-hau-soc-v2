@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Cpu, MoonStar } from 'lucide-react'
 
 function ToggleRow({ icon: Icon, title, description, enabled, onToggle }) {
@@ -29,7 +29,36 @@ function ToggleRow({ icon: Icon, title, description, enabled, onToggle }) {
   )
 }
 
-export default function SettingsPanel({ nightModeOn, onNightModeToggle }) {
+// "5 seconds ago" / "2 minutes ago" style text, from an ISO timestamp.
+function formatRelativeTime(isoString) {
+  if (!isoString) return null
+  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
+  if (seconds < 5) return 'just now'
+  if (seconds < 60) return `${seconds} seconds ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours} hour${hours === 1 ? '' : 's'} ago`
+}
+
+const STATUS_STYLES = {
+  online: { bg: 'bg-successSoft', text: 'text-success', dot: 'bg-success', label: 'Online' },
+  offline: { bg: 'bg-criticalSoft', text: 'text-critical', dot: 'bg-critical', label: 'Offline' },
+  checking: { bg: 'bg-sidebarSoft', text: 'text-white/70', dot: 'bg-white/40 animate-pulse', label: 'Checking…' },
+}
+
+export default function SettingsPanel({ nightModeOn, onNightModeToggle, deviceStatus = 'checking', deviceLastSeen = null }) {
+  // Re-render once a second so "X seconds ago" stays accurate while this
+  // panel is open, without needing a fresh heartbeat to arrive.
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => forceTick(tick => tick + 1), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const style = STATUS_STYLES[deviceStatus] ?? STATUS_STYLES.checking
+  const relativeTime = formatRelativeTime(deviceLastSeen)
+  const isDarkBlock = deviceStatus === 'checking'
 
   return (
     <section className="bg-surface rounded-xl2 shadow-card p-4 sm:p-5 lg:p-6 mt-4 sm:mt-5">
@@ -45,9 +74,16 @@ export default function SettingsPanel({ nightModeOn, onNightModeToggle }) {
         </div>
       </div>
 
-      <div className="mb-5 rounded-xl2 bg-sidebarSoft px-4 py-4 text-sm text-white">
-        <p className="font-semibold">Device status</p>
-        <p className="text-white/70 text-xs mt-1">Device is active and still receiving audio.</p>
+      <div className={`mb-5 rounded-xl2 px-4 py-4 text-sm ${style.bg} ${isDarkBlock ? 'text-white' : ''}`}>
+        <p className={`font-semibold flex items-center gap-2 ${isDarkBlock ? 'text-white' : style.text}`}>
+          <span className={`w-2 h-2 rounded-full inline-block ${style.dot}`} />
+          Device status · {style.label}
+        </p>
+        <p className={`text-xs mt-1 ${isDarkBlock ? 'text-white/70' : style.text}`}>
+          {deviceStatus === 'checking' && 'Waiting for the first check-in…'}
+          {deviceStatus === 'online' && (relativeTime ? `Last check-in: ${relativeTime}` : 'Actively receiving audio.')}
+          {deviceStatus === 'offline' && (relativeTime ? `No check-in for ${relativeTime}` : 'No check-in received yet.')}
+        </p>
       </div>
 
       <div className="grid gap-3">

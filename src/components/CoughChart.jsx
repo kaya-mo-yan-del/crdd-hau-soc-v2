@@ -6,11 +6,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
   ReferenceDot,
 } from 'recharts'
 import { useEffect, useMemo, useState } from 'react'
-import { ALERT_THRESHOLD, formatDisplayDate, getAvailableDates, getDefaultSelectedDate, getPeakPoint } from '../data/detections'
+import { ALERT_THRESHOLD, formatDisplayDate, getAvailableDates, getDefaultSelectedDate } from '../data/detections'
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -20,11 +19,33 @@ function CustomTooltip({ active, payload, label }) {
     <div className="bg-ink text-white text-xs rounded-lg px-3 py-2 shadow-lg font-mono">
       <p className="text-white/60 mb-0.5">{label}</p>
       <p className="font-semibold">
-        {value} respiratory distress events
+        {value} respiratory distress event{value === 1 ? '' : 's'}
         {overThreshold && <span className="text-accent"> · above threshold</span>}
       </p>
     </div>
   )
+}
+
+// Fills in every hour of the day (00:00–23:00) for the selected date, so the
+// graph always reads as a full daily timeline instead of only plotting the
+// scattered hours that happened to have a detection.
+function buildFullDayRecords(date, hourlyRecords) {
+  const countByHour = new Map(hourlyRecords.map(record => [record.time, record.coughs]))
+
+  return Array.from({ length: 24 }, (_, hour) => {
+    const time = `${String(hour).padStart(2, '0')}:00`
+    return { date, time, coughs: countByHour.get(time) ?? 0 }
+  })
+}
+
+// Y-axis always shows at least 0–5. Once the tallest bar exceeds the current
+// ceiling, the ceiling grows in steps of 5 (5 → 10 → 15 …) so there's always
+// headroom above the data, and ticks stay on whole numbers (5 gridlines,
+// each a whole-number step — never a fractional "half a cough").
+function computeYAxisMax(maxValue) {
+  if (maxValue <= 5) return 5
+  const rounded = Math.ceil(maxValue / 5) * 5
+  return rounded === maxValue ? rounded + 5 : rounded
 }
 
 export default function CoughChart({ records = [] }) {
@@ -45,14 +66,32 @@ export default function CoughChart({ records = [] }) {
   }, [records])
 
   const availableDates = useMemo(() => getAvailableDates(records), [records])
-  const selectedRecords = useMemo(
+
+  const dayRecords = useMemo(
     () => records.filter(record => record.date === selectedDate),
     [records, selectedDate]
   )
-  const peakPoint = useMemo(
-    () => (selectedRecords.length ? getPeakPoint(selectedRecords) : null),
-    [selectedRecords]
+
+  const fullDayRecords = useMemo(
+    () => (selectedDate ? buildFullDayRecords(selectedDate, dayRecords) : []),
+    [selectedDate, dayRecords]
   )
+
+  const maxCoughs = useMemo(
+    () => fullDayRecords.reduce((max, record) => Math.max(max, record.coughs), 0),
+    [fullDayRecords]
+  )
+
+  const yAxisMax = computeYAxisMax(maxCoughs)
+  const yAxisTicks = useMemo(() => {
+    const step = yAxisMax / 5
+    return [0, step, step * 2, step * 3, step * 4, yAxisMax]
+  }, [yAxisMax])
+
+  const peakPoint = useMemo(() => {
+    if (!maxCoughs) return null
+    return fullDayRecords.find(record => record.coughs === maxCoughs) ?? null
+  }, [fullDayRecords, maxCoughs])
 
   return (
     <div className="bg-surface rounded-xl2 shadow-card p-4 sm:p-5 lg:p-6 mt-4 sm:mt-5">
@@ -83,18 +122,14 @@ export default function CoughChart({ records = [] }) {
             <span className="flex items-center gap-1.5 text-muted">
               <span className="w-2.5 h-2.5 rounded-sm bg-accent inline-block" /> Detected
             </span>
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="w-3 h-[2px] bg-critical inline-block" style={{ borderTop: '2px dashed #C0473B', background: 'none' }} />
-              Alert threshold ({ALERT_THRESHOLD})
-            </span>
           </div>
         </div>
       </div>
 
       <div className="h-56 sm:h-64 mt-4">
-        {selectedRecords.length > 0 ? (
+        {selectedDate ? (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={selectedRecords} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart data={fullDayRecords} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="coughFill" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#D9A441" stopOpacity={0.28} />
@@ -107,32 +142,19 @@ export default function CoughChart({ records = [] }) {
                 dataKey="time"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#7C8983', fontFamily: 'IBM Plex Mono' }}
-                interval={0}
-                minTickGap={18}
+                tick={{ fontSize: 10, fill: '#7C8983', fontFamily: 'IBM Plex Mono' }}
+                interval={1}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 11, fill: '#7C8983', fontFamily: 'IBM Plex Mono' }}
                 width={28}
+                domain={[0, yAxisMax]}
+                ticks={yAxisTicks}
+                allowDecimals={false}
               />
               <Tooltip content={<CustomTooltip />} />
-
-              <ReferenceLine
-                y={ALERT_THRESHOLD}
-                stroke="#C0473B"
-                strokeDasharray="5 4"
-                strokeWidth={1.5}
-                label={{
-                  value: `Alert threshold · ${ALERT_THRESHOLD}`,
-                  position: 'insideTopRight',
-                  fill: '#C0473B',
-                  fontSize: 11,
-                  fontFamily: 'IBM Plex Mono',
-                  fontWeight: 600,
-                }}
-              />
 
               <Area
                 type="monotone"
@@ -166,7 +188,7 @@ export default function CoughChart({ records = [] }) {
           </ResponsiveContainer>
         ) : (
           <div className="h-full rounded-xl border border-dashed border-line bg-bg/60 flex items-center justify-center text-sm text-muted">
-            No saved cough data for this date.
+            No saved respiratory distress data yet.
           </div>
         )}
       </div>

@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle2, Clock3, PlayCircle } from 'lucide-react'
-import { formatDisplayDate, getAvailableDates } from '../data/detections'
+import { formatDisplayDate, getAvailableDates, updateReviewedLabel } from '../data/detections'
+
+const REVIEW_OPTIONS = ['None', 'Distress']
 
 export default function DetectionHistory({ records = [], isLoading = false }) {
   const [activeAudioId, setActiveAudioId] = useState(null)
+  // Local override map so a click feels instant, without waiting on the
+  // network round-trip: { [detectionId]: 'None' | 'Distress' }
+  const [reviewOverrides, setReviewOverrides] = useState({})
 
   const groupedByDate = useMemo(() => {
     const dates = getAvailableDates(records)
@@ -19,9 +24,10 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
           audioDuration: record.audioDuration,
           audioUrl: record.audioUrl,
           confidence: record.confidence,
+          reviewedLabel: record.reviewedLabel,
         }))
         // Timestamps are "HH:MM:SS.mmm", which sorts correctly as a string —
-        // most recent detection first, even when coughs land milliseconds apart.
+        // most recent detection first, even when events land milliseconds apart.
         .sort((a, b) => b.time.localeCompare(a.time))
 
       return { date, detections: detectionsForDate }
@@ -30,12 +36,25 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
 
   const totalDetections = records.length
 
+  const handleReviewClick = (detectionId, label) => {
+    setReviewOverrides(previous => ({ ...previous, [detectionId]: label }))
+    updateReviewedLabel(detectionId, label).catch(() => {
+      // Roll back if the save failed, so the UI never claims a label stuck
+      // when it didn't.
+      setReviewOverrides(previous => {
+        const next = { ...previous }
+        delete next[detectionId]
+        return next
+      })
+    })
+  }
+
   return (
     <section className="bg-surface rounded-xl2 shadow-card p-4 sm:p-5 lg:p-6 mt-4 sm:mt-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5">
         <div>
           <h2 className="font-display font-semibold text-base">Respiratory distress history</h2>
-          <p className="text-xs text-muted mt-0.5">Every individual cough detection is logged with its exact timestamp.</p>
+          <p className="text-xs text-muted mt-0.5">Every individual respiratory distress detection is logged with its exact timestamp.</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted font-medium">
           <Clock3 size={13} /> {totalDetections} detections logged
@@ -52,41 +71,66 @@ export default function DetectionHistory({ records = [], isLoading = false }) {
             <div key={date} className="pb-1">
               <div className="mb-4">
                 <p className="text-sm font-semibold text-ink">{formatDisplayDate(date)}</p>
-                <p className="text-xs text-muted mt-0.5">{detections.length} cough{detections.length === 1 ? '' : 'es'} detected on this date</p>
+                <p className="text-xs text-muted mt-0.5">
+                  {detections.length} respiratory distress detection{detections.length === 1 ? '' : 's'} on this date
+                </p>
               </div>
 
               <div className="space-y-4">
                 {detections.map((detection, index) => {
                   const isLast = index === detections.length - 1
                   const isAudioOpen = activeAudioId === detection.id
+                  const currentLabel = reviewOverrides[detection.id] ?? detection.reviewedLabel ?? null
 
                   return (
                     <div key={detection.id} className="relative pl-0">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div className="flex items-start gap-3 min-w-0">
-                          {/* A checkmark always indicates the cough was
+                          {/* A checkmark always indicates the detection was
                               successfully recorded. */}
                           <span className="mt-0.5 text-success">
                             <CheckCircle2 size={18} strokeWidth={2} />
                           </span>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-ink font-mono">{detection.time}</p>
-                            <p className="text-xs text-muted mt-0.5">1 cough detected at this exact time</p>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setActiveAudioId(isAudioOpen ? null : detection.id)}
-                          className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-full transition-colors ${
-                            isAudioOpen
-                              ? 'text-sidebar bg-white'
-                              : 'text-white bg-accent hover:bg-accent/90'
-                          }`}
-                        >
-                          <PlayCircle size={14} strokeWidth={2} />
-                          {isAudioOpen ? 'Hide audio' : 'Play audio'}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {REVIEW_OPTIONS.map(option => {
+                            const isSelected = currentLabel === option
+                            const selectedTone = option === 'Distress'
+                              ? 'text-white bg-critical'
+                              : 'text-white bg-success'
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => handleReviewClick(detection.id, option)}
+                                className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                                  isSelected
+                                    ? `${selectedTone} border-transparent`
+                                    : 'text-muted border-line hover:bg-bg'
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            )
+                          })}
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveAudioId(isAudioOpen ? null : detection.id)}
+                            className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-full transition-colors ${
+                              isAudioOpen
+                                ? 'text-sidebar bg-white border border-line'
+                                : 'text-white bg-accent hover:bg-accent/90'
+                            }`}
+                          >
+                            <PlayCircle size={14} strokeWidth={2} />
+                            {isAudioOpen ? 'Hide audio' : 'Play audio'}
+                          </button>
+                        </div>
                       </div>
 
                       {isAudioOpen && (

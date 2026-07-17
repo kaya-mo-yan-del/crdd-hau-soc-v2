@@ -2,10 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import CoughChart from './components/CoughChart'
-import SummaryPanel from './components/SummaryPanel'
 import DetectionHistory from './components/DetectionHistory'
 import SettingsPanel from './components/SettingsPanel'
-import { aggregateEventsByHour, fetchDetectionEvents, subscribeToDetectionEvents } from './data/detections'
+import {
+  aggregateEventsByHour,
+  fetchDetectionEvents,
+  subscribeToDetectionEvents,
+  fetchDeviceLastSeen,
+  subscribeToDeviceStatus,
+  isDeviceOnline,
+} from './data/detections'
+
+// How often we re-check "is it still recent enough to count as online" —
+// this is what lets the status flip to offline on its own if the Pi stops
+// checking in, not just when a new heartbeat arrives.
+const DEVICE_STATUS_POLL_MS = 5000
 
 export default function App() {
   const [active, setActive] = useState('dashboard')
@@ -17,14 +28,17 @@ export default function App() {
   const [detectionEvents, setDetectionEvents] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
+  const [deviceLastSeen, setDeviceLastSeen] = useState(null)
+  const [deviceStatus, setDeviceStatus] = useState('checking')
+
   const isSettings = active === 'settings'
 
   const recordDetectionEvent = incomingEvent => {
     setDetectionEvents(previousEvents => [...previousEvents, incomingEvent])
   }
 
-  // The graph (and summary stats) continue aggregating detections per hour,
-  // recomputed any time a new event comes in.
+  // The graph continues aggregating detections per hour, recomputed any
+  // time a new event comes in.
   const hourlyRecords = useMemo(() => aggregateEventsByHour(detectionEvents), [detectionEvents])
 
   useEffect(() => {
@@ -36,8 +50,7 @@ export default function App() {
   }, [nightModeOn])
 
   // Load whatever detections already exist, then subscribe to new ones as
-  // the Pi uploads them — this replaces the old simulated live feed with
-  // real Supabase data + a realtime subscription.
+  // the Pi uploads them — real Supabase data + a realtime subscription.
   useEffect(() => {
     let isMounted = true
 
@@ -56,6 +69,34 @@ export default function App() {
     }
   }, [])
 
+  // Device status: load the Pi's last heartbeat, subscribe to new ones, and
+  // separately re-check every few seconds so the badge can flip to offline
+  // on its own if the Pi stops checking in (not just when a fresh heartbeat
+  // arrives).
+  useEffect(() => {
+    let isMounted = true
+
+    fetchDeviceLastSeen().then(lastSeen => {
+      if (isMounted) setDeviceLastSeen(lastSeen)
+    })
+
+    const unsubscribe = subscribeToDeviceStatus(lastSeen => {
+      if (isMounted) setDeviceLastSeen(lastSeen)
+    })
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    const evaluate = () => setDeviceStatus(isDeviceOnline(deviceLastSeen) ? 'online' : 'offline')
+    evaluate()
+    const interval = setInterval(evaluate, DEVICE_STATUS_POLL_MS)
+    return () => clearInterval(interval)
+  }, [deviceLastSeen])
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row font-body text-ink overflow-x-hidden bg-bg">
       <Sidebar active={active} onNavigate={setActive} />
@@ -64,17 +105,20 @@ export default function App() {
         <Header
           title={isSettings ? 'Settings' : 'Detection result'}
           subtitle={isSettings ? '(Farm control)' : '(Daily)'}
+          deviceStatus={deviceStatus}
         />
 
         {isSettings ? (
-          <SettingsPanel nightModeOn={nightModeOn} onNightModeToggle={setNightModeOn} />
+          <SettingsPanel
+            nightModeOn={nightModeOn}
+            onNightModeToggle={setNightModeOn}
+            deviceStatus={deviceStatus}
+            deviceLastSeen={deviceLastSeen}
+          />
         ) : (
-          <div className="flex flex-col xl:flex-row gap-5 xl:gap-6 items-start">
-            <div className="flex-1 min-w-0 w-full">
-              <CoughChart records={hourlyRecords} />
-              <DetectionHistory records={detectionEvents} isLoading={isLoading} />
-            </div>
-            <SummaryPanel records={hourlyRecords} />
+          <div className="w-full">
+            <CoughChart records={hourlyRecords} />
+            <DetectionHistory records={detectionEvents} isLoading={isLoading} />
           </div>
         )}
       </main>
