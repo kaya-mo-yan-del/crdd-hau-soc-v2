@@ -8,15 +8,126 @@
 
 body {
   margin: 0;
-  background-color: #F5F3EC;
-  color: #1B231F;
+  background-color: #f0f0f0;
+  color: #1f2937;
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 body.night-mode {
-  background-color: #0f1412;
-  color: #edf2ee;
+  background-color: #0d1210;
+  color: #e6ece9;
+}
+
+body.night-mode .app-main {
+  background-color: #131a17 !important;
+}
+
+body.night-mode .bg-white {
+  background-color: #1a2320 !important;
+}
+
+body.night-mode .bg-gray-50 {
+  background-color: #131a17 !important;
+}
+
+body.night-mode .bg-\[\#e6e6e6\] {
+  background-color: #131a17 !important;
+}
+
+body.night-mode .border-gray-100,
+body.night-mode .border-gray-200,
+body.night-mode .border-gray-300,
+body.night-mode .divide-gray-100 {
+  border-color: #2e3934 !important;
+}
+
+body.night-mode .text-gray-900 {
+  color: #edf2ef !important;
+}
+
+body.night-mode .text-gray-800 {
+  color: #d7e0db !important;
+}
+
+body.night-mode .text-gray-700 {
+  color: #c4d0ca !important;
+}
+
+body.night-mode .text-gray-600,
+body.night-mode .text-gray-500,
+body.night-mode .text-gray-400 {
+  color: #93a39b !important;
+}
+
+body.night-mode .hover\:bg-gray-50:hover,
+body.night-mode .hover\:bg-gray-100:hover,
+body.night-mode .hover\:bg-gray-300:hover {
+  background-color: #24302b !important;
+}
+
+body.night-mode .bg-blue-50 {
+  background-color: #222a27 !important;
+}
+
+body.night-mode .bg-emerald-50 {
+  background-color: #222a27 !important;
+}
+
+body.night-mode .text-green-700 {
+  color: #73d1a0 !important;
+}
+
+body.night-mode .text-emerald-700,
+body.night-mode .text-emerald-600 {
+  color: #9fb4aa !important;
+}
+
+body.night-mode .border-green-600 {
+  border-color: #4eb985 !important;
+}
+
+body.night-mode .border-emerald-500 {
+  border-color: #71897f !important;
+}
+
+body.night-mode .bg-green-600 {
+  background-color: #2f9c6a !important;
+}
+
+body.night-mode .bg-emerald-500,
+body.night-mode .bg-emerald-400 {
+  background-color: #5f7f73 !important;
+}
+
+body.night-mode .bg-orange-500,
+body.night-mode .bg-orange-600 {
+  background-color: #bb6d1f !important;
+}
+
+body.night-mode .text-red-600 {
+  color: #ff8a80 !important;
+}
+
+body.night-mode .border-red-500 {
+  border-color: #dd6a61 !important;
+}
+
+body.night-mode .bg-gray-200 {
+  background-color: #2a3430 !important;
+}
+
+body.night-mode .border-t {
+  border-top-color: #2e3934 !important;
 }
 
 body.night-mode .bg-bg {

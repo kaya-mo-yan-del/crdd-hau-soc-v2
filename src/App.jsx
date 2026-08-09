@@ -114,26 +114,28 @@ export default function App() {
   }, [deviceLastSeen])
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row font-body text-ink overflow-x-hidden bg-bg">
-      <Sidebar active={active} onNavigate={setActive} />
+    <div className="flex flex-col md:flex-row min-h-screen md:h-screen overflow-x-hidden md:overflow-hidden font-body text-ink bg-[#f0f0f0]">
+      <Sidebar
+        active={active}
+        onNavigate={setActive}
+        deviceStatus={deviceStatus}
+        deviceLastSeen={deviceLastSeen}
+      />
 
-      <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7 md:ml-60">
+      <main className="app-main flex-1 flex flex-col min-h-0 md:h-screen overflow-hidden md:ml-64 bg-[#e6e6e6]">
         <Header
           title={isSettings ? 'Settings' : 'Detection result'}
           subtitle={isSettings ? '(Farm control)' : '(Daily)'}
-          deviceStatus={deviceStatus}
         />
 
         {isSettings ? (
           <SettingsPanel
             nightModeOn={nightModeOn}
             onNightModeToggle={setNightModeOn}
-            deviceStatus={deviceStatus}
-            deviceLastSeen={deviceLastSeen}
           />
         ) : (
-          <div className="w-full">
-            <CoughChart records={hourlyRecords} />
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pb-24 md:pb-8 space-y-4 sm:space-y-6 scrollbar-hide">
+            <CoughChart records={hourlyRecords} nightModeOn={nightModeOn} />
             <DetectionHistory records={detectionEvents} isLoading={isLoading} onReviewChange={handleReviewChange} />
           </div>
         )}

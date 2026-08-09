@@ -11,12 +11,12 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { formatDisplayDate, getAvailableDates, getDefaultSelectedDate } from '../data/detections'
 
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, isNightMode = false }) {
   if (!active || !payload?.length) return null
   const value = payload[0].value
   return (
-    <div className="bg-ink text-white text-xs rounded-lg px-3 py-2 shadow-lg font-mono">
-      <p className="text-white/60 mb-0.5">{label}</p>
+    <div className={`text-xs rounded-lg px-3 py-2 shadow-lg ${isNightMode ? 'bg-black text-gray-100 border border-white/10' : 'bg-gray-900 text-white'}`}>
+      <p className={`${isNightMode ? 'text-gray-400' : 'text-white/70'} mb-0.5`}>{label}</p>
       <p className="font-semibold">
         {value} respiratory distress event{value === 1 ? '' : 's'}
       </p>
@@ -46,7 +46,7 @@ function computeYAxisMax(maxValue) {
   return rounded === maxValue ? rounded + 5 : rounded
 }
 
-export default function CoughChart({ records = [] }) {
+export default function CoughChart({ records = [], nightModeOn = false }) {
   const [selectedDate, setSelectedDate] = useState(() => getDefaultSelectedDate(records))
 
   useEffect(() => {
@@ -91,23 +91,35 @@ export default function CoughChart({ records = [] }) {
     return fullDayRecords.find(record => record.coughs === maxCoughs) ?? null
   }, [fullDayRecords, maxCoughs])
 
+  const chartTone = nightModeOn
+    ? {
+        line: '#88b6a1',
+        fill: '#88b6a1',
+        grid: '#2f3935',
+        tick: '#99a8a1',
+        peakLabel: '#e6ece9',
+      }
+    : {
+        line: '#74b98f',
+        fill: '#74b98f',
+        grid: '#e5e7eb',
+        tick: '#6b7280',
+        peakLabel: '#111827',
+      }
+
   return (
-    <div className="bg-surface rounded-xl2 shadow-card p-4 sm:p-5 lg:p-6 mt-4 sm:mt-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-1">
+    <section className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start mb-8">
         <div className="min-w-0">
-          <h2 className="font-display font-semibold text-base">Respiratory distress activity</h2>
-          <p className="text-xs text-muted mt-0.5">
-            {selectedDate ? formatDisplayDate(selectedDate) : 'No saved data yet'}
-          </p>
-          <p className="text-xs text-muted mt-0.5">Hourly respiratory distress detections over time</p>
+          <h2 className="text-lg font-bold text-gray-900">Respiratory distress activity</h2>
+          <p className="text-sm text-gray-500 mt-1">Hourly respiratory distress detections over time</p>
         </div>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <label className="flex flex-col gap-1 text-xs font-semibold text-muted">
-            Date
+        <div className="flex flex-col items-start sm:items-end gap-3">
+          <label className="text-sm font-medium text-gray-700">
             <select
               value={selectedDate}
               onChange={event => setSelectedDate(event.target.value)}
-              className="rounded-lg border border-line bg-bg px-3 py-2 text-sm font-medium text-ink shadow-sm outline-none transition-colors focus:border-accent"
+              className="rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-white outline-none focus:ring-2 focus:ring-emerald-200"
             >
               {availableDates.map(dateValue => (
                 <option key={dateValue} value={dateValue}>
@@ -116,52 +128,53 @@ export default function CoughChart({ records = [] }) {
               ))}
             </select>
           </label>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium">
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="w-2.5 h-2.5 rounded-sm bg-accent inline-block" /> Detected
-            </span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 border border-gray-200 rounded text-xs font-medium text-gray-700 bg-white shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>Detected</span>
           </div>
         </div>
       </div>
 
-      <div className="h-56 sm:h-64 mt-4">
+      <div className="h-64 sm:h-72 mt-6">
         {selectedDate ? (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={fullDayRecords} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
+            <AreaChart data={fullDayRecords} margin={{ top: 16, right: 20, left: 10, bottom: 10 }}>
               <defs>
                 <linearGradient id="coughFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#D9A441" stopOpacity={0.28} />
-                  <stop offset="100%" stopColor="#D9A441" stopOpacity={0} />
+                  <stop offset="0%" stopColor={chartTone.fill} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={chartTone.fill} stopOpacity={0} />
                 </linearGradient>
               </defs>
 
-              <CartesianGrid vertical={false} stroke="#E7E3D8" />
+              <CartesianGrid vertical={false} stroke={chartTone.grid} strokeDasharray="4 4" />
               <XAxis
                 dataKey="time"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 10, fill: '#7C8983', fontFamily: 'IBM Plex Mono' }}
-                interval={1}
+                tick={{ fontSize: 11, fill: chartTone.tick }}
+                interval="preserveStartEnd"
+                minTickGap={22}
+                tickMargin={8}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#7C8983', fontFamily: 'IBM Plex Mono' }}
-                width={28}
+                tick={{ fontSize: 11, fill: chartTone.tick }}
+                width={34}
                 domain={[0, yAxisMax]}
                 ticks={yAxisTicks}
                 allowDecimals={false}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip isNightMode={nightModeOn} />} />
 
               <Area
                 type="monotone"
                 dataKey="coughs"
-                stroke="#D9A441"
+                stroke={chartTone.line}
                 strokeWidth={2.5}
                 fill="url(#coughFill)"
                 dot={false}
-                activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2, fill: '#D9A441' }}
+                activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2, fill: chartTone.line }}
               />
 
               {peakPoint ? (
@@ -169,15 +182,14 @@ export default function CoughChart({ records = [] }) {
                   x={peakPoint.time}
                   y={peakPoint.coughs}
                   r={5}
-                  fill="#C0473B"
+                  fill={chartTone.line}
                   stroke="#fff"
                   strokeWidth={2}
                   label={{
                     value: `Peak distress · ${peakPoint.coughs}`,
                     position: 'top',
-                    fill: '#1B231F',
+                    fill: chartTone.peakLabel,
                     fontSize: 11,
-                    fontFamily: 'IBM Plex Mono',
                     fontWeight: 600,
                   }}
                 />
@@ -185,11 +197,11 @@ export default function CoughChart({ records = [] }) {
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full rounded-xl border border-dashed border-line bg-bg/60 flex items-center justify-center text-sm text-muted">
+          <div className="h-full rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-sm text-gray-500">
             No saved respiratory distress data yet.
           </div>
         )}
       </div>
-    </div>
+    </section>
   )
 }
